@@ -18,6 +18,7 @@
 
 import os
 import re
+import signal
 import sys
 import traceback
 from pathlib import Path
@@ -36,14 +37,16 @@ Fill a disk with pseudo-random data as fast as possible, then clean up.
 Designed to push out old data from SSDs by writing pseudo-random bytes
 until the target size is reached or the disk is full.
 
-Each worker process writes its own file using a seed-XOR-counter strategy
-for maximum throughput using only the Python standard library.
+Each worker process writes its own file(s) using a seed-XOR-counter
+strategy for maximum throughput using only the Python standard library.
 
 Examples:
+  pushfill                         # Fill current directory until disk is full
   pushfill /tmp                    # Fill /tmp until disk is full, then delete
+  pushfill /tmp/fill.bin           # Write to a single file
   pushfill /tmp --size 10G         # Write 10 GB then delete
   pushfill /tmp --size 500M --keep # Write 500 MB and keep files
-  pushfill . --workers 4           # Use 4 worker processes
+  pushfill /mnt/usb --fat32        # Fill a FAT32 drive (4 GiB file limit)
 """
 
 # ────────────────────────────────────────────────────────────────────────────────────────
@@ -99,7 +102,7 @@ def create_parser() -> ArgsParser:
         "path",
         nargs="?",
         default=".",
-        help="Directory to fill with data (default: current directory)",
+        help="Directory or file path to fill (default: current directory)",
     )
     parser.add_argument(
         "--size",
@@ -122,6 +125,16 @@ def create_parser() -> ArgsParser:
         type=int,
         default=4,
         help="Chunk size in MiB per write (default: 4)",
+    )
+    parser.add_argument(
+        "--fat32",
+        action="store_true",
+        help="Limit each file to 4 GiB (for FAT32 filesystems)",
+    )
+    parser.add_argument(
+        "--max-file-size",
+        default=None,
+        help="Maximum size per file (e.g. 2G). Overrides --fat32",
     )
     parser.add_argument(
         "--no-colour",
@@ -162,10 +175,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         return _main_inner(argv)
     except KeyboardInterrupt:
-        print()
-        print("---- Manually Terminated ----")
-        print()
-        return 1
+        return 0  # Already handled gracefully by Filler
     except SystemExit:
         raise
     except BaseException as e:
@@ -185,23 +195,33 @@ def main(argv: Optional[list[str]] = None) -> int:
 def _main_inner(argv: list[str]) -> int:
     """Inner main function that does the actual work."""
     from pushfill.colour import set_colours_enabled
+    from pushfill.filler import FAT32_MAX_FILE_SIZE
     from pushfill.filler import Filler
+    from pushfill.filler import detect_filesystem_limit
 
     parser = create_parser()
     args: Namespace = parser.parse(argv)
-
-    # If no args were given at all, help was shown
-    if not argv:
-        return 0
 
     # Handle colour settings
     if args.no_colour:
         set_colours_enabled(False)
 
-    # Resolve target path
-    target_dir = Path(args.path).resolve()
-    if not target_dir.is_dir():
-        print(f"Error: {target_dir} is not a directory", file=sys.stderr)
+    # Resolve target path — detect file vs directory
+    raw_path = Path(args.path).resolve()
+    output_path: Optional[Path] = None
+
+    if raw_path.is_dir():
+        target_dir = raw_path
+    elif raw_path.is_file():
+        # Existing file — single-file mode, overwrite
+        target_dir = raw_path.parent
+        output_path = raw_path
+    elif raw_path.parent.is_dir():
+        # Non-existent path with valid parent — single-file mode, create
+        target_dir = raw_path.parent
+        output_path = raw_path
+    else:
+        print(f"Error: {raw_path.parent} is not a directory", file=sys.stderr)
         return 1
 
     # Parse target size
@@ -213,8 +233,39 @@ def _main_inner(argv: list[str]) -> int:
             print(f"Error: {e}", file=sys.stderr)
             return 1
 
-    # Determine worker count
-    num_workers = args.workers if args.workers is not None else (os.cpu_count() or 4)
+    # Determine max file size (explicit flags → auto-detect)
+    max_file_size = 0
+    if args.max_file_size is not None:
+        try:
+            max_file_size = parse_size(args.max_file_size)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+    elif args.fat32:
+        max_file_size = FAT32_MAX_FILE_SIZE
+    else:
+        detected = detect_filesystem_limit(target_dir)
+        if detected > 0:
+            max_file_size = detected
+            print("  Detected FAT32 filesystem — files limited to 4 GiB each")
+
+    # Single-file mode on FAT32 won't work — can't fill the disk with one file
+    if output_path is not None and max_file_size > 0:
+        print(
+            "Error: single-file mode is not compatible with FAT32 filesystems.\n"
+            "       FAT32 has a 4 GiB per-file limit, so filling a disk requires\n"
+            "       multiple files. Specify a directory path instead.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Single-file mode forces 1 worker
+    if output_path is not None:
+        num_workers = 1
+    else:
+        num_workers = (
+            args.workers if args.workers is not None else (os.cpu_count() or 4)
+        )
     if num_workers < 1:
         print("Error: --workers must be at least 1", file=sys.stderr)
         return 1
@@ -222,20 +273,28 @@ def _main_inner(argv: list[str]) -> int:
     # Chunk size (argument is in MiB)
     chunk_size = args.chunk_size * 1024 * 1024
 
-    # Run
+    # Run with guaranteed cleanup
     filler = Filler(
         target_dir=target_dir,
         num_workers=num_workers,
         chunk_size=chunk_size,
         target_size=target_size,
+        max_file_size=max_file_size,
         verbose=args.verbose,
+        output_path=output_path,
     )
 
-    filler.run()
-
-    if not args.keep:
-        filler.cleanup()
-    else:
-        print(f"  Files kept in {target_dir}")
+    try:
+        filler.run()
+    finally:
+        # Ignore further Ctrl+C during cleanup — files must be deleted
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if not args.keep:
+            filler.cleanup()
+        else:
+            if output_path is not None:
+                print(f"  File kept at {output_path}")
+            else:
+                print(f"  Files kept in {target_dir}")
 
     return 0

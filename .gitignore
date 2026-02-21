@@ -47,6 +47,10 @@ htmlcov/
 # Build output
 /output
 
+# pushfill data files
+pushfill_*.bin
+*.bin
+
 # Generated version file
 pushfill/_version.py
 
