@@ -1,8 +1,4 @@
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-## 2.0.0 — February 2026
+# 2.0.0 — 22 Feb 2026
 
 Complete rewrite in Python, replacing the original C implementation.
 
@@ -27,7 +23,7 @@ Complete rewrite in Python, replacing the original C implementation.
 - Rewritten from C to Python (stdlib only, zero dependencies)
 - Data generation changed from RC4 + byte increment to seed-XOR-counter
 
-## 1.0.0 — February 2018
+# 1.0.0 — February 2018
 
 Original C implementation.
 

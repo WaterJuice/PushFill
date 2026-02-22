@@ -32,6 +32,10 @@ classifiers = [
     "Topic :: System :: Systems Administration",
 ]
 
+[project.urls]
+Documentation = "https://pushfill-4a17ec.gitlab.io/"
+Repository = "https://gitlab.com/waterjuice/pushfill"
+
 [project.scripts]
 pushfill = "pushfill.cli:main"
 
