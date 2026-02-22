@@ -105,38 +105,45 @@ def create_parser() -> ArgsParser:
         help="Directory or file path to fill (default: current directory)",
     )
     parser.add_argument(
+        "-s",
         "--size",
         default=None,
         help="Target size to write (e.g. 10G, 500M, 1T). Default: fill disk",
     )
     parser.add_argument(
+        "-k",
         "--keep",
         action="store_true",
         help="Keep generated files instead of deleting them",
     )
     parser.add_argument(
+        "-w",
         "--workers",
         type=int,
         default=None,
         help="Number of worker processes (default: CPU count)",
     )
     parser.add_argument(
+        "-c",
         "--chunk-size",
         type=int,
         default=4,
         help="Chunk size in MiB per write (default: 4)",
     )
     parser.add_argument(
+        "-f",
         "--fat32",
         action="store_true",
         help="Limit each file to 4 GiB (for FAT32 filesystems)",
     )
     parser.add_argument(
+        "-m",
         "--max-file-size",
         default=None,
         help="Maximum size per file (e.g. 2G). Overrides --fat32",
     )
     parser.add_argument(
+        "-n",
         "--no-colour",
         "--no-color",
         action="store_true",

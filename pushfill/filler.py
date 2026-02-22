@@ -173,6 +173,7 @@ def _worker(
     max_file_size: int,
     max_bytes: int,
     output_path: str,
+    file_seq_start: int = 0,
 ) -> None:
     """
     Worker process that writes pseudo-random data to file(s).
@@ -193,7 +194,7 @@ def _worker(
     stride = (1 << (chunk_size * 4)) | 0xDEADBEEF
     n = 0
     local_written = 0
-    file_seq = 0
+    file_seq = file_seq_start
     file_bytes = 0
 
     def _open_file() -> int:
@@ -340,6 +341,20 @@ class Filler:
             per_worker = 0  # 0 = unlimited (fill until disk full)
             remainder = 0
 
+        # Scan for existing pushfill files to avoid overwriting (e.g. after --keep)
+        file_seq_starts: list[int] = [0] * self._num_workers
+        if self._output_path is None:
+            for f in self._target_dir.glob("pushfill_*_*.bin"):
+                parts = f.stem.split("_")  # ["pushfill", "WWWW", "SSSS"]
+                if len(parts) == 3:
+                    try:
+                        wid = int(parts[1])
+                        seq = int(parts[2])
+                        if wid < self._num_workers:
+                            file_seq_starts[wid] = max(file_seq_starts[wid], seq + 1)
+                    except ValueError:
+                        pass
+
         # Spawn workers
         for i in range(self._num_workers):
             worker_max = per_worker + (remainder if i == self._num_workers - 1 else 0)
@@ -358,6 +373,7 @@ class Filler:
                     self._max_file_size,
                     worker_max,
                     worker_output,
+                    file_seq_starts[i],
                 ),
                 daemon=True,
             )
@@ -385,6 +401,17 @@ class Filler:
                     int(c.value)
                     for c in self._counters  # type: ignore[union-attr]
                 )
+
+                # Refresh goal when filling to disk capacity (no --size).
+                # As macOS purges iCloud/purgeable data, free space grows.
+                if self._target_size is None:
+                    try:
+                        usage = shutil.disk_usage(str(self._target_dir))
+                        goal = total + usage.free
+                        display.set_goal(goal)
+                    except OSError:
+                        pass
+
                 display.update(total)
 
                 # Check if all workers have exited (disk full / done)

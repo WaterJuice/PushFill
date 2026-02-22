@@ -88,6 +88,11 @@ class Display:
         self._lines_printed = 0
 
     # ──────────────────────────────────────────────────────────────────────────────────
+    def set_goal(self, goal_bytes: Optional[int]) -> None:
+        """Update the goal bytes (e.g. when purgeable space is reclaimed)."""
+        self._goal_bytes = goal_bytes
+
+    # ──────────────────────────────────────────────────────────────────────────────────
     def _move_up_and_clear(self) -> None:
         """Move cursor up to overwrite previous output."""
         if self._lines_printed > 0:
