@@ -27,6 +27,7 @@ from pushfill.colour import bold
 from pushfill.colour import cyan
 from pushfill.colour import dim
 from pushfill.colour import green
+from pushfill.colour import magenta
 from pushfill.colour import yellow
 
 # ────────────────────────────────────────────────────────────────────────────────────────
@@ -112,22 +113,22 @@ class Display:
     # ──────────────────────────────────────────────────────────────────────────────────
     def _box_line(self, content: str, inner_w: int) -> str:
         """Wrap content in box borders, padding to inner_w visible characters."""
-        # Strip ANSI codes to measure visible length
         visible = _strip_ansi(content)
         pad = inner_w - len(visible)
         if pad < 0:
             pad = 0
-        return f"\u2502  {content}{' ' * pad}  \u2502"
+        border = dim("\u2502")
+        return f"{border}  {content}{' ' * pad}  {border}"
 
     # ──────────────────────────────────────────────────────────────────────────────────
     def _box_top(self, inner_w: int) -> str:
-        return "\u250c" + "\u2500" * (inner_w + 4) + "\u2510"
+        return dim("\u256d" + "\u2500" * (inner_w + 4) + "\u256e")
 
     def _box_sep(self, inner_w: int) -> str:
-        return "\u251c" + "\u2500" * (inner_w + 4) + "\u2524"
+        return dim("\u251c" + "\u2500" * (inner_w + 4) + "\u2524")
 
     def _box_bottom(self, inner_w: int) -> str:
-        return "\u2514" + "\u2500" * (inner_w + 4) + "\u2518"
+        return dim("\u2570" + "\u2500" * (inner_w + 4) + "\u256f")
 
     # ──────────────────────────────────────────────────────────────────────────────────
     def update(self, total_bytes: int) -> None:
@@ -170,11 +171,12 @@ class Display:
 
         # Line 2: title + elapsed
         elapsed_str = format_time(elapsed)
-        title_left = bold("pushfill")
+        title_left = bold(cyan("pushfill"))
         title_right = dim(f"Elapsed {elapsed_str}")
         title_pad = inner_w - _visible_len(title_left) - _visible_len(title_right)
+        border = dim("\u2502")
         lines.append(
-            f"\u2502  {title_left}{' ' * max(1, title_pad)}{title_right}  \u2502"
+            f"{border}  {title_left}{' ' * max(1, title_pad)}{title_right}  {border}"
         )
 
         # Line 3: separator
@@ -186,8 +188,8 @@ class Display:
         speed_gbps = ema * 8 / 1e9
         lines.append(
             self._box_line(
-                f"{bold('Speed')}     {cyan(f'{speed_mbs:,.1f} MB/s')}   "
-                f"({speed_gbps:.2f} Gbps)",
+                f"{magenta(bold('Speed'))}     {cyan(f'{speed_mbs:,.1f} MB/s')}   "
+                f"{dim(f'({speed_gbps:.2f} Gbps)')}",
                 inner_w,
             )
         )
@@ -197,8 +199,8 @@ class Display:
         avg_gbps = avg_rate * 8 / 1e9
         lines.append(
             self._box_line(
-                f"{bold('Average')}   {cyan(f'{avg_mbs:,.1f} MB/s')}   "
-                f"({avg_gbps:.2f} Gbps)",
+                f"{magenta(bold('Average'))}   {cyan(f'{avg_mbs:,.1f} MB/s')}   "
+                f"{dim(f'({avg_gbps:.2f} Gbps)')}",
                 inner_w,
             )
         )
@@ -213,11 +215,11 @@ class Display:
                 )
             else:
                 eta_str = ""
-            left = f"{bold('Written')}   {cyan(size_str)}"
-            right = dim(eta_str)
+            left = f"{magenta(bold('Written'))}   {cyan(size_str)}"
+            right = yellow(eta_str) if eta_str else ""
         else:
             progress = 0.0
-            left = f"{bold('Written')}   {cyan(format_size(total_bytes))}"
+            left = f"{magenta(bold('Written'))}   {cyan(format_size(total_bytes))}"
             try:
                 usage = shutil.disk_usage(self._target_path)
                 disk_pct = usage.used / usage.total * 100 if usage.total > 0 else 0.0
@@ -227,13 +229,13 @@ class Display:
                 right = ""
 
         pad = inner_w - _visible_len(left) - _visible_len(right)
-        lines.append(f"\u2502  {left}{' ' * max(1, pad)}{right}  \u2502")
+        border = dim("\u2502")
+        lines.append(f"{border}  {left}{' ' * max(1, pad)}{right}  {border}")
 
         # Line 7: progress bar
         pct_str = f"{progress * 100:.1f}%"
-        bar_colour = cyan if self._goal_bytes else green
-        prog_bar = self._get_bar(progress, bar_width, bar_colour)
-        lines.append(self._box_line(f"{prog_bar}  {bar_colour(pct_str)}", inner_w))
+        prog_bar = self._get_bar(progress, bar_width, green)
+        lines.append(self._box_line(f"{prog_bar}  {green(pct_str)}", inner_w))
 
         # Line 8: bottom border
         lines.append(self._box_bottom(inner_w))
@@ -273,7 +275,7 @@ class Display:
         lines.append(self._box_top(inner_w))
         lines.append(
             self._box_line(
-                f"{bold('pushfill')}  {green('Done')} — "
+                f"{bold(cyan('pushfill'))}  {green('Done')} — "
                 f"wrote {cyan(format_size(total_bytes))} "
                 f"in {bold(format_time(elapsed))}",
                 inner_w,
@@ -281,8 +283,8 @@ class Display:
         )
         lines.append(
             self._box_line(
-                f"Average: {cyan(f'{avg_mbs:,.1f} MB/s')} "
-                f"({avg_gbps:.2f} Gbps) "
+                f"{magenta('Average:')} {cyan(f'{avg_mbs:,.1f} MB/s')} "
+                f"{dim(f'({avg_gbps:.2f} Gbps)')} "
                 f"across {self._num_workers} workers",
                 inner_w,
             )
