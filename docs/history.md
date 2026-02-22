@@ -6,10 +6,12 @@ pushfill v2 is a complete rewrite in Python, replacing the original C implementa
 
 Key improvements over v1:
 
-- **Multiprocess architecture** — spawns one worker per CPU core, saturating modern
-  NVMe drives (~3x faster than the single-threaded v1 on the same hardware)
+- **Multiprocess architecture** — spawns one worker per CPU core, each with its own
+  random pool and background writer thread, saturating modern NVMe drives
 - **Pool-based random with XOR multiplication** — replaces RC4 with continuous
   random generation stretched via XOR combinations
+- **Background writer thread** — overlaps disk I/O with data generation within each
+  worker, since `os.write()` releases Python's GIL
 - **Live terminal UI** — colourful box-drawn display with speed, progress bar, and ETA
 - **FAT32 auto-detection** — automatically detects FAT32 filesystems and respects
   the 4 GiB file size limit

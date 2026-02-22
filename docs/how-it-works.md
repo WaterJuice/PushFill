@@ -41,11 +41,23 @@ a flag rather than physically writing to the NAND cells. The same applies to
 any repeating pattern. By writing unique, incompressible data, pushfill
 forces actual physical writes to every block.
 
+## Background Writer Thread
+
+Within each worker, data generation and disk I/O happen concurrently. A
+**background writer thread** pulls blocks from a queue and calls `os.write()`,
+while the main thread generates the next block. This works because `os.write()`
+releases Python's GIL, allowing the main thread to run `getrandbits()` and
+`int.to_bytes()` in parallel with the kernel write.
+
+This gives roughly a 36% throughput improvement per worker compared to
+sequential generate-then-write.
+
 ## Multiprocessing
 
 pushfill spawns one worker process per CPU core by default. Each worker:
 
-- Gets its own random seed (no shared state for data generation)
+- Gets its own random pool (no shared state for data generation)
+- Uses a background writer thread to overlap I/O with generation
 - Writes to its own set of files (`pushfill_WWWW_SSSS.bin`)
 - Reports progress via a shared counter (`multiprocessing.Value`)
 

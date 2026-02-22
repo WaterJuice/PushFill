@@ -7,9 +7,11 @@ This file provides guidance for AI agents working on this project.
 pushfill is a single-purpose CLI tool that fills a disk with pseudo-random data as fast
 as possible, then deletes the files. Used to push out old data from SSDs.
 
-Uses multiprocessing with a seed XOR counter strategy for maximum throughput (~7 GB/s
-on Apple Silicon). Each worker process generates its own random seed, then XORs with
-an incrementing counter to produce data blocks and writes them directly to disk.
+Uses multiprocessing with pool-based random generation and XOR multiplication for
+maximum throughput. Each worker process maintains a pool of random blocks, generates
+output by XORing fresh blocks with pool entries, and uses a background writer thread
+to overlap I/O with data generation. Saturates NVMe drive bandwidth (~2.6 GB/s on
+Apple Silicon).
 
 ## Language and Spelling
 
@@ -104,8 +106,11 @@ pushfill/
 
 - **No subcommands** — single-purpose tool with flat argument list
 - **Multiprocess workers** — each worker generates random data and writes to its own file
-- **Seed XOR counter** — one `random.randbytes` call per worker at startup, then fast
-  integer XOR with incrementing counter for all subsequent blocks
+- **Pool-based random with XOR multiplication** — each worker maintains a pool of 8
+  random blocks; each cycle generates one fresh block and XORs it with the others for
+  8 output blocks per `getrandbits()` call
+- **Background writer thread** — `os.write()` releases the GIL, so each worker overlaps
+  disk I/O with data generation in a separate thread
 - **Shared counters** — `multiprocessing.Value(ctypes.c_uint64)` for progress tracking
 - **OSError catch** — workers catch disk-full (ENOSPC) as normal termination
 

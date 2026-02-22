@@ -6,6 +6,7 @@ Complete rewrite in Python, replacing the original C implementation.
 
 - Multiprocess architecture — one worker per CPU core for maximum throughput
 - Pool-based random generation with XOR multiplication
+- Background writer thread — overlaps disk I/O with data generation per worker
 - Live terminal UI with colourful box-drawn display, speed, progress bar, and ETA
 - FAT32 auto-detection on macOS, Linux, and Windows
 - `--fat32` flag and `--max-file-size` option for manual file size limits

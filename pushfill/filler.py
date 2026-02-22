@@ -20,9 +20,11 @@
 import ctypes
 import errno
 import os
+import queue
 import random
 import shutil
 import signal
+import threading
 import time
 from multiprocessing import Process
 from multiprocessing import Value
@@ -293,23 +295,55 @@ def _worker(
         max_scrub_retries = 3  # exit after this many full scrub-downs with no progress
 
         while not stop.value:  # type: ignore[union-attr]
-            # Main phase: write full chunks at maximum speed
-            while not stop.value:  # type: ignore[union-attr]
-                if max_bytes > 0 and local_written >= max_bytes:
+            # Main phase: generate in main thread, write in background thread.
+            # os.write() releases the GIL, so the main thread can generate
+            # the next block while the previous one is being written to disk.
+            write_q: queue.Queue[Optional[bytes]] = queue.Queue(maxsize=1)
+            disk_full = False
+
+            def _writer_loop(q: queue.Queue[Optional[bytes]]) -> None:
+                nonlocal disk_full
+                while True:
+                    item = q.get()
+                    if item is None:
+                        break
+                    if not _write_chunk(item):
+                        disk_full = True
+                        break
+
+            writer = threading.Thread(target=_writer_loop, args=(write_q,), daemon=True)
+            writer.start()
+
+            submitted = 0  # bytes submitted to writer (main-thread-only counter)
+            while not stop.value and not disk_full:  # type: ignore[union-attr]
+                if max_bytes > 0 and submitted >= max_bytes:
                     break
                 data = _next_block().to_bytes(chunk_size, "little")
                 if max_bytes > 0:
-                    remaining_budget = max_bytes - local_written
+                    remaining_budget = max_bytes - submitted
                     if remaining_budget < chunk_size:
                         data = data[:remaining_budget]
-                if not _write_chunk(data):
-                    break
+                submitted += len(data)
+                # Submit to writer; short timeout so we notice disk_full/stop
+                while not disk_full and not stop.value:  # type: ignore[union-attr]
+                    try:
+                        write_q.put(data, timeout=0.1)
+                        break
+                    except queue.Full:
+                        continue
+
+            write_q.put(None)
+            writer.join()
 
             # Exit if stopped or target reached
             if stop.value or (max_bytes > 0 and local_written >= max_bytes):  # type: ignore[union-attr]
                 break
 
-            # Scrub phase: fill remaining space with progressively smaller writes
+            if not disk_full:
+                break
+
+            # Scrub phase: fill remaining space with progressively smaller
+            # writes. Done sequentially — chunks are tiny so no I/O overlap.
             scrub_size = chunk_size // 2
             wrote_in_scrub = False
             while scrub_size >= MIN_SCRUB_SIZE and not stop.value:  # type: ignore[union-attr]
