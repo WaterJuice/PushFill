@@ -3,8 +3,8 @@
 #   ─────────
 #
 #   Core multiprocess disk fill logic. Each worker process writes pseudo-random
-#   data to its own file(s) using the seed-XOR-counter strategy for maximum
-#   throughput with stdlib only.
+#   data to its own file(s) using a pool-based random generation strategy with
+#   XOR multiplication for maximum throughput with stdlib only.
 #
 #   (c) 2026 WaterJuice — Unlicense; see LICENSE in the project root.
 #
@@ -39,6 +39,7 @@ DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024  # 4 MiB
 UPDATE_INTERVAL = 0.5  # seconds between display updates
 FAT32_MAX_FILE_SIZE = (1 << 32) - 1  # 4 GiB - 1 byte
 MIN_SCRUB_SIZE = 512  # smallest write attempt during scrub phase
+POOL_SIZE = 8  # random blocks kept in the generation pool
 
 # Known FAT-family filesystem type names (lowercase) for auto-detection
 _FAT_FSTYPES = frozenset({"msdos", "vfat", "fat32", "fat16", "fat"})
@@ -178,8 +179,10 @@ def _worker(
     """
     Worker process that writes pseudo-random data to file(s).
 
-    Uses seed-XOR-counter strategy: generate one random seed at startup,
-    then XOR with an incrementing counter for each subsequent block.
+    Uses pool-based generation with XOR multiplication: maintains a pool
+    of random blocks and generates output by XORing each fresh random
+    block with every other entry in the pool. With a pool of N, this
+    produces N output blocks per random generation call.
 
     When ENOSPC is hit, enters a scrub phase writing progressively smaller
     chunks until the disk is truly full. If max_file_size > 0, rotates to
@@ -190,9 +193,46 @@ def _worker(
     # Ignore SIGINT in workers — main process handles shutdown via stop flag
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-    base = int.from_bytes(random.randbytes(chunk_size), "little")
-    stride = (1 << (chunk_size * 4)) | 0xDEADBEEF
-    n = 0
+    # Pool-based random generation with XOR multiplication.
+    # Each cycle: generate one fresh random block, then XOR it with every
+    # other pool entry. Pool of 8 → 8 output blocks per getrandbits() call.
+    rng = random.Random()
+    chunk_bits = chunk_size * 8
+    pool: list[int] = []
+    _replace_idx = 0
+    _fresh_idx = 0
+    _xor_partner = 0
+    _need_random = True
+
+    def _next_block() -> int:
+        """Return next data block as an integer (chunk_size bytes worth)."""
+        nonlocal _replace_idx, _fresh_idx, _xor_partner, _need_random
+
+        if _need_random or len(pool) < 2:
+            # Generate a fresh random block and add/replace in pool
+            val = rng.getrandbits(chunk_bits)
+            if len(pool) < POOL_SIZE:
+                pool.append(val)
+                _fresh_idx = len(pool) - 1
+            else:
+                pool[_replace_idx] = val
+                _fresh_idx = _replace_idx
+                _replace_idx = (_replace_idx + 1) % POOL_SIZE
+            _need_random = False
+            _xor_partner = 0
+            if _xor_partner == _fresh_idx:
+                _xor_partner = 1
+            return val
+
+        # XOR the fresh entry with the next partner
+        result = pool[_fresh_idx] ^ pool[_xor_partner]
+        _xor_partner += 1
+        if _xor_partner == _fresh_idx:
+            _xor_partner += 1
+        if _xor_partner >= len(pool):
+            _need_random = True
+        return result
+
     local_written = 0
     file_seq = file_seq_start
     file_bytes = 0
@@ -257,8 +297,7 @@ def _worker(
             while not stop.value:  # type: ignore[union-attr]
                 if max_bytes > 0 and local_written >= max_bytes:
                     break
-                data = (base ^ (stride * n)).to_bytes(chunk_size, "little")
-                n += 1
+                data = _next_block().to_bytes(chunk_size, "little")
                 if max_bytes > 0:
                     remaining_budget = max_bytes - local_written
                     if remaining_budget < chunk_size:
@@ -274,8 +313,7 @@ def _worker(
             scrub_size = chunk_size // 2
             wrote_in_scrub = False
             while scrub_size >= MIN_SCRUB_SIZE and not stop.value:  # type: ignore[union-attr]
-                data = (base ^ (stride * n)).to_bytes(chunk_size, "little")
-                n += 1
+                data = _next_block().to_bytes(chunk_size, "little")
                 scrub_data = data[:scrub_size]
                 if not _write_chunk(scrub_data):
                     scrub_size //= 2

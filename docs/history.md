@@ -7,8 +7,9 @@ pushfill v2 is a complete rewrite in Python, replacing the original C implementa
 Key improvements over v1:
 
 - **Multiprocess architecture** — spawns one worker per CPU core, saturating modern
-  NVMe drives (~7 GB/s on Apple Silicon vs ~1 GB/s single-threaded in v1)
-- **Seed-XOR-counter** — replaces RC4 with a faster data generation strategy
+  NVMe drives (~3x faster than the single-threaded v1 on the same hardware)
+- **Pool-based random with XOR multiplication** — replaces RC4 with continuous
+  random generation stretched via XOR combinations
 - **Live terminal UI** — colourful box-drawn display with speed, progress bar, and ETA
 - **FAT32 auto-detection** — automatically detects FAT32 filesystems and respects
   the 4 GiB file size limit
@@ -31,8 +32,8 @@ It used a straightforward approach:
 3. Repeat with new RC4-generated blocks until the disk is full
 
 This produced unique data on every block while being significantly faster than
-full cryptographic random generation. Typical speeds reached ~1 GB/s on SATA
-SSDs of the era.
+full cryptographic random generation. On modern NVMe drives it reaches around
+2.6 GB/s — fast, but limited by being single-threaded.
 
 The original was single-threaded, which was sufficient for SATA drives (~500 MB/s)
 but couldn't saturate modern NVMe drives.

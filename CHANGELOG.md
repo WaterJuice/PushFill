@@ -5,7 +5,7 @@ Complete rewrite in Python, replacing the original C implementation.
 ### Added
 
 - Multiprocess architecture — one worker per CPU core for maximum throughput
-- Seed-XOR-counter data generation strategy
+- Pool-based random generation with XOR multiplication
 - Live terminal UI with colourful box-drawn display, speed, progress bar, and ETA
 - FAT32 auto-detection on macOS, Linux, and Windows
 - `--fat32` flag and `--max-file-size` option for manual file size limits
@@ -21,7 +21,7 @@ Complete rewrite in Python, replacing the original C implementation.
 ### Changed
 
 - Rewritten from C to Python (stdlib only, zero dependencies)
-- Data generation changed from RC4 + byte increment to seed-XOR-counter
+- Data generation changed from RC4 + byte increment to pool-based random with XOR multiplication
 
 # 1.0.0 — February 2018
 

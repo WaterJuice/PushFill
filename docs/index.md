@@ -14,13 +14,14 @@ on the NAND flash. pushfill forces every available block to be overwritten with
 unique, non-compressible data.
 
 Unlike writing zeroes (which the drive controller might optimise away) or using slow
-cryptographic wipers, pushfill uses a **seed-XOR-counter** strategy that produces
-unique data at maximum speed — typically saturating the drive's write bandwidth.
+cryptographic wipers, pushfill uses a **pool-based random generation** strategy with
+XOR multiplication that produces unique data at maximum speed — typically saturating
+the drive's write bandwidth.
 
 ## Features
 
-- **Fast** — multiprocess workers saturate NVMe drives (~7 GB/s on Apple Silicon)
-- **Unique data** — seed-XOR-counter ensures every block written is different
+- **Fast** — multiprocess workers saturate NVMe drives on Apple Silicon
+- **Unique data** — continuous random generation with XOR multiplication ensures every block is different
 - **Zero dependencies** — pure Python standard library, no pip packages needed
 - **Cross-platform** — works on macOS, Linux, and Windows
 - **FAT32 aware** — auto-detects FAT32 filesystems and respects the 4 GiB file limit

@@ -6,29 +6,33 @@ pushfill uses multiple worker processes to write pseudo-random data to disk
 files as fast as possible. The goal is to overwrite every available block on
 the drive with unique, non-compressible data.
 
-## Seed-XOR-Counter Strategy
+## Pool-Based Random Generation
 
-Each worker generates random data using a two-step approach:
+Each worker continuously generates random data using a pool with XOR
+multiplication:
 
-1. **Seed generation** — at startup, each worker calls `random.randbytes(chunk_size)`
-   to produce a cryptographically-seeded random block (the "seed")
-2. **Counter XOR** — for each subsequent write, the seed is XORed with an
-   incrementing counter multiplied by a large stride constant
+1. **Pool fill** — the worker maintains a pool of 8 random blocks, generated
+   using Python's Mersenne Twister (`random.getrandbits`)
+2. **Fresh block** — each cycle, a new random block is generated and placed
+   in the pool (replacing the oldest entry)
+3. **XOR multiplication** — the fresh block is XORed with every other entry
+   in the pool, producing 7 additional unique output blocks
 
 ```
-block[n] = seed XOR (stride * n)
+cycle: generate fresh block R
+output: R, R^pool[0], R^pool[1], ..., R^pool[6]
 ```
 
-This produces unique data for every block written, across all workers, without
-the overhead of repeated cryptographic random generation. The stride constant
-includes a magic number (`0xDEADBEEF`) to ensure good bit distribution.
+With a pool of 8, this produces 8 output blocks per random generation call —
+an 8x throughput multiplier while ensuring every output block contains fresh
+randomness. The pool is continuously refreshed, so no block is ever reused.
 
-### Why not just use random data?
+### Why not pure random for every block?
 
-Calling `random.randbytes()` for every chunk is slow — it involves the OS
-entropy pool and cryptographic mixing. The XOR-counter approach generates
-the seed once, then produces subsequent blocks with a single integer XOR
-operation, which is orders of magnitude faster.
+Calling `random.getrandbits()` for every chunk is the bottleneck — even the
+fast Mersenne Twister can't keep up with NVMe write speeds. The XOR
+multiplication stretches each random generation across 8 output blocks while
+keeping every block unique and pattern-free.
 
 ### Why not write zeroes?
 
