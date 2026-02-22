@@ -46,6 +46,9 @@ source = "uv-dynamic-versioning"
 vcs = "git"
 pattern = "default-unprefixed"
 
+[tool.cal-publish-python]
+profile = "waterjuice"
+
 [tool.uv]
 
 [tool.ruff]
@@ -69,4 +72,8 @@ exclude = ["random_bench.py", ".venv"]
 dev = [
     "ruff",
     "pyright[nodejs]",
+    "cal-publish-python>=0.4.0; python_version >= '3.12'",
+]
+docs = [
+    "mkdocs-material",
 ]

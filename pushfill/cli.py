@@ -16,6 +16,7 @@
 #   Imports
 # ────────────────────────────────────────────────────────────────────────────────────────
 
+import argparse
 import os
 import re
 import signal
@@ -47,6 +48,33 @@ Examples:
   pushfill /tmp --size 10G         # Write 10 GB then delete
   pushfill /tmp --size 500M --keep # Write 500 MB and keep files
   pushfill /mnt/usb --fat32        # Fill a FAT32 drive (4 GiB file limit)
+"""
+
+LICENCE_TEXT = """\
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <https://unlicense.org>
 """
 
 # ────────────────────────────────────────────────────────────────────────────────────────
@@ -156,6 +184,13 @@ def create_parser() -> ArgsParser:
         action="store_true",
         help="Show verbose output",
     )
+    parser.add_argument(
+        "--license",
+        "--licence",
+        action="store_true",
+        dest="license",
+        help=argparse.SUPPRESS,
+    )
 
     return parser
 
@@ -212,6 +247,57 @@ def _main_inner(argv: list[str]) -> int:
     # Handle colour settings
     if args.no_colour:
         set_colours_enabled(False)
+
+    # Hidden --license flag — print colourised licence and exit
+    if args.license:
+        from pushfill.colour import bold
+        from pushfill.colour import cyan
+        from pushfill.colour import dim
+        from pushfill.colour import green
+        from pushfill.colour import magenta
+        from pushfill.colour import yellow
+
+        print()
+        print(f"  {bold(cyan(f'pushfill {VERSION_STR}'))}")
+        print(f"  {dim('─' * 40)}")
+        print()
+        print(f"  {bold(green('This is free and unencumbered software'))}")
+        print(f"  {green('released into the public domain.')}")
+        print()
+        print(
+            f"  {cyan('Anyone is free to')} {bold(cyan('copy'))}{cyan(',')}"
+            f" {bold(cyan('modify'))}{cyan(',')}"
+            f" {bold(cyan('publish'))}{cyan(',')}"
+            f" {bold(cyan('use'))}{cyan(',')}"
+            f" {bold(cyan('compile'))}{cyan(',')}"
+            f" {bold(cyan('sell'))}{cyan(', or')}"
+        )
+        print(f"  {cyan('distribute this software, either in source code form')}")
+        print(
+            f"  {cyan('or as a compiled binary, for')} {bold(cyan('any purpose'))}"
+            f"{cyan(', commercial')}"
+        )
+        print(f"  {cyan('or non-commercial, and by any means.')}")
+        print()
+        print(f"  {magenta('In jurisdictions that recognize copyright laws,')}")
+        print(f"  {magenta('the author or authors of this software dedicate')}")
+        print(f"  {magenta('any and all copyright interest in the software to')}")
+        print(f"  {magenta('the public domain.')}")
+        print()
+        warranty = (
+            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY\n'
+            "OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT\n"
+            "LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS\n"
+            "FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT."
+        )
+        for wline in warranty.splitlines():
+            print(f"  {dim(wline)}")
+        print()
+        print(
+            f"  {yellow('For more information:')} {bold(cyan('https://unlicense.org'))}"
+        )
+        print()
+        return 0
 
     # Resolve target path — detect file vs directory
     raw_path = Path(args.path).resolve()
@@ -289,6 +375,7 @@ def _main_inner(argv: list[str]) -> int:
         max_file_size=max_file_size,
         verbose=args.verbose,
         output_path=output_path,
+        version=VERSION_STR,
     )
 
     try:

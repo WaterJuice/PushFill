@@ -10,6 +10,9 @@ help:
 	@echo "  make format       - Format source using Ruff"
 	@echo "  make lint         - Lint source using pyright"
 	@echo "  make dev          - Just create dev (.venv) setup"
+	@echo "  make docs         - Build documentation site"
+	@echo "  make docs-serve   - Serve documentation locally"
+	@echo "  make publish      - Publish to PyPI and upload docs"
 
 # Version string from git tags (falls back to commit hash if no tags)
 VERSION_STR=$(shell git describe --tags --always 2>/dev/null | sed 's/-/.post.dev/' | sed 's/-g/-/')
@@ -19,12 +22,14 @@ VERSION_STR=$(shell git describe --tags --always 2>/dev/null | sed 's/-/.post.de
 version:
 	@echo '__version__ = "$(VERSION_STR)"' > pushfill/_version.py
 
-# Build the project
+# Build the project (wheel + docs zip)
 .PHONY: build
-build: check-dependencies format-check lint version
+build: check-dependencies format-check lint version docs
 	rm -rf output/
 	uv build --out-dir output
 	rm -f output/*.tar.gz
+	WHL=$$(ls output/*.whl) && VER=$$(echo "$$WHL" | sed 's/.*pushfill-//' | sed 's/-py3.*//') && \
+		cd html && zip -rq ../output/pushfill-$$VER-docs.zip .
 
 .PHONY: clean
 clean:
@@ -54,6 +59,24 @@ lint: check-dependencies
 # Just create dev (.venv) setup
 .PHONY: dev
 dev: check-dependencies
+
+# Build documentation site (injects version into mkdocs.yml)
+.PHONY: docs
+docs:
+	sed 's/__VERSION__/$(VERSION_STR)/' mkdocs.yml > mkdocs-build.yml
+	uv run --group docs mkdocs build -f mkdocs-build.yml -d html
+	rm -f mkdocs-build.yml
+
+# Serve documentation locally
+.PHONY: docs-serve
+docs-serve:
+	sed 's/__VERSION__/$(VERSION_STR)/' mkdocs.yml > mkdocs-build.yml
+	uv run --group docs mkdocs serve -f mkdocs-build.yml; rm -f mkdocs-build.yml
+
+# Publish to PyPI and upload docs
+.PHONY: publish
+publish: check-dependencies
+	uv run cal-publish-python --set-latest output/
 
 # Check if uv is installed, install it if not
 .PHONY: check-dependencies

@@ -76,11 +76,13 @@ class Display:
         target_size: Optional[int] = None,
         goal_bytes: Optional[int] = None,
         num_workers: int = 1,
+        version: str = "dev",
     ) -> None:
         self._target_path = target_path
         self._target_size = target_size
         self._goal_bytes = goal_bytes
         self._num_workers = num_workers
+        self._version = version
         self._start_time = time.monotonic()
         self._prev_total = 0
         self._prev_time = self._start_time
@@ -176,7 +178,7 @@ class Display:
 
         # Line 2: title + elapsed
         elapsed_str = format_time(elapsed)
-        title_left = bold(cyan("pushfill"))
+        title_left = bold(cyan(f"pushfill {self._version}"))
         title_right = dim(f"Elapsed {elapsed_str}")
         title_pad = inner_w - _visible_len(title_left) - _visible_len(title_right)
         border = dim("\u2502")
@@ -280,7 +282,7 @@ class Display:
         lines.append(self._box_top(inner_w))
         lines.append(
             self._box_line(
-                f"{bold(cyan('pushfill'))}  {green('Done')} — "
+                f"{bold(cyan(f'pushfill {self._version}'))}  {green('Done')} — "
                 f"wrote {cyan(format_size(total_bytes))} "
                 f"in {bold(format_time(elapsed))}",
                 inner_w,

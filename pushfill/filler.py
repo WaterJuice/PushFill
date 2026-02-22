@@ -245,23 +245,34 @@ def _worker(
     try:
         fd_current = _open_file()
 
-        # Main phase: write full chunks
+        # Main loop: alternate between full-speed writes and scrub phase.
+        # When macOS purges purgeable space (iCloud, snapshots), free space
+        # can reappear after ENOSPC, so we loop back to full-speed writes
+        # rather than exiting.
+        consecutive_scrub_failures = 0
+        max_scrub_retries = 3  # exit after this many full scrub-downs with no progress
+
         while not stop.value:  # type: ignore[union-attr]
-            if max_bytes > 0 and local_written >= max_bytes:
-                break
-            data = (base ^ (stride * n)).to_bytes(chunk_size, "little")
-            n += 1
-            if max_bytes > 0:
-                remaining_budget = max_bytes - local_written
-                if remaining_budget < chunk_size:
-                    data = data[:remaining_budget]
-            if not _write_chunk(data):
+            # Main phase: write full chunks at maximum speed
+            while not stop.value:  # type: ignore[union-attr]
+                if max_bytes > 0 and local_written >= max_bytes:
+                    break
+                data = (base ^ (stride * n)).to_bytes(chunk_size, "little")
+                n += 1
+                if max_bytes > 0:
+                    remaining_budget = max_bytes - local_written
+                    if remaining_budget < chunk_size:
+                        data = data[:remaining_budget]
+                if not _write_chunk(data):
+                    break
+
+            # Exit if stopped or target reached
+            if stop.value or (max_bytes > 0 and local_written >= max_bytes):  # type: ignore[union-attr]
                 break
 
-        # Scrub phase: fill remaining space with progressively smaller writes
-        # Only scrub if we weren't stopped by target size or interrupt
-        if not stop.value and not (max_bytes > 0 and local_written >= max_bytes):  # type: ignore[union-attr]
+            # Scrub phase: fill remaining space with progressively smaller writes
             scrub_size = chunk_size // 2
+            wrote_in_scrub = False
             while scrub_size >= MIN_SCRUB_SIZE and not stop.value:  # type: ignore[union-attr]
                 data = (base ^ (stride * n)).to_bytes(chunk_size, "little")
                 n += 1
@@ -269,6 +280,18 @@ def _worker(
                 if not _write_chunk(scrub_data):
                     scrub_size //= 2
                     continue
+                wrote_in_scrub = True
+
+            # If scrub wrote nothing new, space may not be coming back
+            if not wrote_in_scrub:
+                consecutive_scrub_failures += 1
+                if consecutive_scrub_failures >= max_scrub_retries:
+                    break
+                # Brief pause before retrying — gives OS time to purge
+                time.sleep(0.5)
+            else:
+                consecutive_scrub_failures = 0
+                # Space was freed — loop back to full-speed main phase
 
         os.close(fd_current)
     except (KeyboardInterrupt, BrokenPipeError):
@@ -295,6 +318,7 @@ class Filler:
         max_file_size: int = 0,
         verbose: bool = False,
         output_path: Optional[Path] = None,
+        version: str = "dev",
     ) -> None:
         self._target_dir = target_dir
         self._num_workers = num_workers
@@ -303,6 +327,7 @@ class Filler:
         self._max_file_size = max_file_size
         self._verbose = verbose
         self._output_path = output_path
+        self._version = version
         self._counters: list[Any] = []
         self._stop: Any = None
         self._processes: list[Process] = []
@@ -392,6 +417,7 @@ class Filler:
             target_size=self._target_size,
             goal_bytes=goal,
             num_workers=self._num_workers,
+            version=self._version,
         )
 
         try:

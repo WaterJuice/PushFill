@@ -47,6 +47,10 @@ htmlcov/
 # Build output
 /output
 
+# Documentation site
+/html
+mkdocs-build.yml
+
 # pushfill data files
 pushfill_*.bin
 *.bin
