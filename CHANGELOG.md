@@ -1,4 +1,4 @@
-# 2.0.0 — 22 Feb 2026
+# 2.0.0 — 23 Feb 2026
 
 Complete rewrite in Python, replacing the original C implementation.
 
