@@ -2,37 +2,17 @@
 
 ## Overview
 
-pushfill uses multiple worker processes to write pseudo-random data to disk
+pushfill uses multiple goroutine workers to write pseudo-random data to disk
 files as fast as possible. The goal is to overwrite every available block on
 the drive with unique, non-compressible data.
 
-## Pool-Based Random Generation
+## Random Data Generation
 
-Each worker continuously generates random data using a pool with XOR
-multiplication:
-
-1. **Pool fill** — the worker maintains a pool of 8 random blocks, generated
-   using Python's Mersenne Twister (`random.getrandbits`)
-2. **Fresh block** — each cycle, a new random block is generated and placed
-   in the pool (replacing the oldest entry)
-3. **XOR multiplication** — the fresh block is XORed with every other entry
-   in the pool, producing 7 additional unique output blocks
-
-```
-cycle: generate fresh block R
-output: R, R^pool[0], R^pool[1], ..., R^pool[6]
-```
-
-With a pool of 8, this produces 8 output blocks per random generation call —
-an 8x throughput multiplier while ensuring every output block contains fresh
-randomness. The pool is continuously refreshed, so no block is ever reused.
-
-### Why not pure random for every block?
-
-Calling `random.getrandbits()` for every chunk is the bottleneck — even the
-fast Mersenne Twister can't keep up with NVMe write speeds. The XOR
-multiplication stretches each random generation across 8 output blocks while
-keeping every block unique and pattern-free.
+Each worker generates random data using Go's `crypto/rand` package, which
+provides cryptographically secure random bytes. Since Go is a compiled
+language with efficient concurrency primitives, there is no need for the
+complex pool-based XOR multiplication that the Python version used — direct
+`crypto/rand` reads are fast enough to saturate disk I/O.
 
 ### Why not write zeroes?
 
@@ -41,28 +21,15 @@ a flag rather than physically writing to the NAND cells. The same applies to
 any repeating pattern. By writing unique, incompressible data, pushfill
 forces actual physical writes to every block.
 
-## Background Writer Thread
+## Goroutine Workers
 
-Within each worker, data generation and disk I/O happen concurrently. A
-**background writer thread** pulls blocks from a queue and calls `os.write()`,
-while the main thread generates the next block. This works because `os.write()`
-releases Python's GIL, allowing the main thread to run `getrandbits()` and
-`int.to_bytes()` in parallel with the kernel write.
+pushfill spawns one goroutine worker per CPU core by default. Each worker:
 
-This gives roughly a 36% throughput improvement per worker compared to
-sequential generate-then-write.
-
-## Multiprocessing
-
-pushfill spawns one worker process per CPU core by default. Each worker:
-
-- Gets its own random pool (no shared state for data generation)
-- Uses a background writer thread to overlap I/O with generation
+- Generates random data via `crypto/rand.Read()`
 - Writes to its own set of files (`pushfill_WWWW_SSSS.bin`)
-- Reports progress via a shared counter (`multiprocessing.Value`)
+- Reports progress via a shared atomic counter (`sync/atomic.Int64`)
 
-Workers are daemon processes and ignore `SIGINT` — the main process handles
-shutdown via a shared stop flag.
+Workers check a shared atomic stop flag and exit gracefully when signalled.
 
 ### File Naming
 
@@ -98,14 +65,14 @@ disk pressure), workers automatically ramp back up to full chunk size.
 ## Dynamic Progress
 
 When filling a disk to capacity (no `--size`), pushfill periodically
-rechecks available disk space via `shutil.disk_usage()`. This keeps the
-progress bar and ETA accurate even when the OS reclaims purgeable space
-(such as iCloud photo caches on macOS) during the fill.
+rechecks available disk space. This keeps the progress bar and ETA accurate
+even when the OS reclaims purgeable space (such as iCloud photo caches on
+macOS) during the fill.
 
 ## Signal Handling
 
-- **Workers** ignore `SIGINT` — they only stop when the shared stop flag is set
-- **Main process** catches `SIGINT`, sets the stop flag, and waits for workers
-  to finish their current write
-- During cleanup (file deletion), `SIGINT` is ignored to ensure files are
+- **Workers** check a shared atomic stop flag on each iteration
+- **Main goroutine** catches SIGINT/SIGTERM, sets the stop flag, and waits
+  for workers to finish their current write
+- During cleanup (file deletion), SIGINT is ignored to ensure files are
   always removed

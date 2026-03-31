@@ -26,7 +26,7 @@ pushfill /tmp --size 500M --keep
 | | `path` | Directory or file to fill (default: current directory) |
 | `-s` | `--size` | Target size to write (e.g. `10G`, `500M`, `1T`). Default: fill disk |
 | `-k` | `--keep` | Keep generated files instead of deleting them |
-| `-w` | `--workers` | Number of worker processes (default: CPU count) |
+| `-w` | `--workers` | Number of worker goroutines (default: CPU count) |
 | `-c` | `--chunk-size` | Chunk size in MiB per write (default: 4) |
 | `-f` | `--fat32` | Limit each file to 4 GiB (for FAT32 filesystems) |
 | `-m` | `--max-file-size` | Maximum size per file (e.g. `2G`). Overrides `--fat32` |
@@ -68,7 +68,7 @@ pushfill /mnt/usb --max-file-size 2G
 ## Single-File Mode
 
 When the path argument points to a file (rather than a directory), pushfill
-writes to that single file using one worker process.
+writes to that single file using one worker.
 
 ```bash
 # Create and fill a single file

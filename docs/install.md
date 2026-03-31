@@ -32,5 +32,5 @@ pip install output/*.whl
 
 ## Requirements
 
-- Python 3.9 or later
-- No external runtime dependencies — pushfill uses only the Python standard library
+- No runtime dependencies — pushfill is a standalone compiled Go binary
+- Platform wheels are available for macOS, Linux, and Windows (amd64 + arm64)

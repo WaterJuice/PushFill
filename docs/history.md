@@ -1,24 +1,42 @@
 # History
 
+## Version 3 (2026)
+
+pushfill v3 is a complete rewrite in Go, replacing the Python implementation.
+
+Key improvements over v2:
+
+- **Compiled Go binary** — single static executable, no runtime dependencies
+- **Cross-platform wheels** — macOS, Linux, and Windows (amd64 + arm64)
+- **crypto/rand** — cryptographically secure random data generation
+- **Goroutine workers** — simple, efficient concurrency without the complexity
+  of Python multiprocessing and GIL workarounds
+- **Simplified architecture** — no pool-based XOR multiplication or background
+  writer threads needed; Go's performance makes direct random generation fast
+  enough to saturate disk I/O
+
+The CLI interface, terminal display, and all user-facing behaviour remain
+identical to v2.
+
 ## Version 2 (2026)
 
-pushfill v2 is a complete rewrite in Python, replacing the original C implementation.
+pushfill v2 was a complete rewrite in Python, replacing the original C implementation.
 
 Key improvements over v1:
 
-- **Multiprocess architecture** — spawns one worker per CPU core, each with its own
-  random pool and background writer thread, saturating modern NVMe drives
-- **Pool-based random with XOR multiplication** — replaces RC4 with continuous
+- **Multiprocess architecture** — spawned one worker per CPU core, each with its own
+  random pool and background writer thread
+- **Pool-based random with XOR multiplication** — replaced RC4 with continuous
   random generation stretched via XOR combinations
-- **Background writer thread** — overlaps disk I/O with data generation within each
+- **Background writer thread** — overlapped disk I/O with data generation within each
   worker, since `os.write()` releases Python's GIL
 - **Live terminal UI** — colourful box-drawn display with speed, progress bar, and ETA
-- **FAT32 auto-detection** — automatically detects FAT32 filesystems and respects
+- **FAT32 auto-detection** — automatically detected FAT32 filesystems and respected
   the 4 GiB file size limit
 - **Single-file mode** — write to a specific file path instead of a directory
-- **Scrub phase** — fills the last bytes of disk space with progressively smaller writes
-- **Graceful shutdown** — Ctrl+C stops cleanly with guaranteed file cleanup
-- **Cross-platform** — works on macOS, Linux, and Windows
+- **Scrub phase** — filled the last bytes of disk space with progressively smaller writes
+- **Graceful shutdown** — Ctrl+C stopped cleanly with guaranteed file cleanup
+- **Cross-platform** — worked on macOS, Linux, and Windows
 
 ## Version 1 (2018)
 

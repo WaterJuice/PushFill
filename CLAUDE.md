@@ -7,11 +7,9 @@ This file provides guidance for AI agents working on this project.
 pushfill is a single-purpose CLI tool that fills a disk with pseudo-random data as fast
 as possible, then deletes the files. Used to push out old data from SSDs.
 
-Uses multiprocessing with pool-based random generation and XOR multiplication for
-maximum throughput. Each worker process maintains a pool of random blocks, generates
-output by XORing fresh blocks with pool entries, and uses a background writer thread
-to overlap I/O with data generation. Saturates NVMe drive bandwidth (~2.6 GB/s on
-Apple Silicon).
+Written in Go with zero external dependencies (stdlib only). Uses goroutine-based
+workers with `crypto/rand` for random data generation. Distributed as a Go binary
+via PyPI using `bin2whl` for cross-platform wheel packaging.
 
 ## Language and Spelling
 
@@ -22,111 +20,131 @@ Use **Australian English** throughout:
 
 ## Code Style
 
-### Python Files
+### Go Files
 
-- **Python 3.9+** — every file must have `from __future__ import annotations`
-- stdlib only — zero external runtime dependencies
-- Use type hints throughout (pyright strict mode)
-- Prefer pathlib.Path over os.path
-- Single-line imports, no blank lines between import groups (configured in pyproject.toml)
-- Run `make format` to auto-fix import ordering
+- **Go 1.25+** — uses standard library only, zero external dependencies
+- `CGO_ENABLED=0` for static cross-compilation
+- Format with `gofmt`
+- Lint with `go vet`
+- Manual CLI argument parsing (no flag package)
+- TTY-aware ANSI colour output (Python 3.14 argparse style)
 
-Every Python file should have:
+Every Go file should have:
 1. A file header block with description, authors, and version history
 2. Section headers separating major sections (Imports, Constants, Functions, etc.)
-3. Horizontal separators (96 chars) above each function definition
+3. Horizontal separators (87 chars) above each function definition
 
 Example structure:
-```python
-# ────────────────────────────────────────────────────────────────────────────────────────
-#   filename.py
-#   ───────────
-#
-#   Brief description of what this module does.
-#
-#   (c) 2026 WaterJuice — Unlicense; see LICENSE in the project root.
-#
-#   Authors
-#   ───────
-#   bena (via Claude)
-#
-#   Version History
-#   ───────────────
-#   Feb 2026 - Created
-# ────────────────────────────────────────────────────────────────────────────────────────
-from __future__ import annotations
+```go
+// ---------------------------------------------------------------------------------------
+//
+//	filename.go
+//	-----------
+//
+//	Brief description of what this module does.
+//
+//	(c) 2026 WaterJuice — Released under the Unlicense; see LICENSE.
+//
+//	Authors
+//	-------
+//	bena (via Claude)
+//
+//	Version History
+//	---------------
+//	Mar 2026 - Created
+//
+// ---------------------------------------------------------------------------------------
+package internal
 
-# ────────────────────────────────────────────────────────────────────────────────────────
-#   Imports
-# ────────────────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------------------
+//
+//	Imports
+//
+// ---------------------------------------------------------------------------------------
 
-import sys
-from pathlib import Path
+import (
+	"fmt"
+)
 
-# ────────────────────────────────────────────────────────────────────────────────────────
-#   Functions
-# ────────────────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------------------
+//
+//	Functions
+//
+// ---------------------------------------------------------------------------------------
 
-
-# ────────────────────────────────────────────────────────────────────────────────────────
-def my_function() -> None:
-    """Docstring here."""
-    pass
+// ---------------------------------------------------------------------------------------
+// MyFunction does something useful.
+func MyFunction() {
+}
 ```
 
 ## Common Commands
 
 ```bash
 make help       # Show all available targets
-make check      # Run ruff + pyright
-make format     # Auto-fix and format code
-make build      # Build wheel into output/
+make check      # Run gofmt check + go vet
+make format     # Format Go source with gofmt
+make go-build   # Cross-compile for all platforms
+make build      # Build wheels and documentation
 make clean      # Remove build artefacts
-make dev        # Just create dev (.venv) setup
+make dev        # Build + symlink into .venv/bin/
+make run ARGS="" # Build + run with arguments
 ```
 
 ## Project Structure
 
 ```
 pushfill/
-├── pushfill/             # Main package
-│   ├── __init__.py       # Package init, exports __version__
-│   ├── __main__.py       # Entry point for python -m pushfill
-│   ├── argbuilder.py     # CLI argument parsing wrapper
-│   ├── cli.py            # CLI entry point and argument parsing
-│   ├── version.py        # Version string handling
-│   ├── colour.py         # ANSI colour helpers
-│   ├── display.py        # Live terminal status display
-│   └── filler.py         # Core multiprocessing fill logic
+├── main.go               # Entry point, version injection via ldflags
+├── go.mod                # Go module (zero external dependencies)
+├── internal/             # Internal package
+│   ├── cli.go            # CLI argument parsing, help text, colour helpers
+│   ├── display.go        # Live terminal status display with box drawing
+│   ├── filler.go         # Core fill logic with goroutine workers
+│   ├── platform_unix.go  # Unix disk usage, filesystem detection, terminal width
+│   ├── platform_windows.go # Windows implementations
+│   ├── statfs_darwin.go  # macOS filesystem type name extraction
+│   └── statfs_linux.go   # Linux filesystem type detection via /proc/mounts
 ├── Makefile              # Build automation
-└── pyproject.toml        # Project metadata and dependencies
+├── pyproject.toml        # Minimal uv config for dev dependencies
+├── wheel.json            # bin2whl configuration for wheel building
+├── mkdocs.yml            # Documentation config
+└── docs/                 # Documentation source
 ```
 
 ## Architecture
 
 - **No subcommands** — single-purpose tool with flat argument list
-- **Multiprocess workers** — each worker generates random data and writes to its own file
-- **Pool-based random with XOR multiplication** — each worker maintains a pool of 8
-  random blocks; each cycle generates one fresh block and XORs it with the others for
-  8 output blocks per `getrandbits()` call
-- **Background writer thread** — `os.write()` releases the GIL, so each worker overlaps
-  disk I/O with data generation in a separate thread
-- **Shared counters** — `multiprocessing.Value(ctypes.c_uint64)` for progress tracking
-- **OSError catch** — workers catch disk-full (ENOSPC) as normal termination
+- **Goroutine workers** — each worker generates random data and writes to its own file
+- **crypto/rand** — uses Go's cryptographic random number generator for data
+- **Atomic counters** — `sync/atomic.Int64` for lock-free progress tracking
+- **Platform files** — build-tagged files for Unix vs Windows specifics
+- **FAT32 auto-detection** — via statfs on macOS, /proc/mounts on Linux,
+  GetVolumeInformationW on Windows
+- **Scrub phase** — workers fill remaining space with progressively smaller writes
+- **Signal handling** — catches SIGINT/SIGTERM, sets stop flag, cleanup ignores SIGINT
+
+## Build & Distribution
+
+- Go binary cross-compiled for 6 platforms (macOS/Linux/Windows × amd64/arm64)
+- Version injected at build time via `-ldflags -X main.Version=...`
+- `bin2whl` wraps each binary in a platform-specific Python wheel
+- Wheels distributed via PyPI — install with `uv tool install pushfill` or `pip install pushfill`
+- No Python runtime needed — the wheel contains a standalone Go binary
 
 ## Testing Changes
 
 After making changes:
-1. Run `make check` to verify linting and types pass
-2. Run `make build` to verify the full build works
-3. Test CLI with `uv run pushfill --help`
-4. Test a small fill: `uv run pushfill /tmp --size 100M`
+1. Run `make check` to verify formatting and vet pass
+2. Run `make go-build` to verify cross-compilation works
+3. Test CLI with `make run ARGS="--help"`
+4. Test a small fill: `make run ARGS="--size 100M /tmp"`
 
 ## Versioning
 
 - Version is derived from git tags via Makefile
-- Create a tag like `1.0.0` before running `make build` for a release (no `v` prefix)
-- The Makefile generates `_version.py` at build time, which is not committed
+- Create a tag like `3.0.0` before running `make build` for a release (no `v` prefix)
+- The Makefile injects the version via Go ldflags at build time
 
 ## Commits
 

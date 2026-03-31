@@ -1,29 +1,9 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+# Go
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
-# Virtual environments
+# Virtual environments (for uv dev tools)
 .venv/
 venv/
-ENV/
 
 # IDE
 .idea/
@@ -31,18 +11,6 @@ ENV/
 *.swp
 *.swo
 *~
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Type checking
-.pyright/
-.mypy_cache/
-
-# Linting
-.ruff_cache/
 
 # Build output
 /output
@@ -54,9 +22,6 @@ mkdocs-build.yml
 # pushfill data files
 pushfill_*.bin
 *.bin
-
-# Generated version file
-pushfill/_version.py
 
 .DS_Store
 .claude/

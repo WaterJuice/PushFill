@@ -1,4 +1,29 @@
-# 2.0.0 — 23 Feb 2026
+# pushfill 3.0.0 Beta 1 — 31 Mar 2026
+
+Complete rewrite in Go, replacing the Python implementation.
+
+### Added
+
+- Go binary — single static executable, zero runtime dependencies
+- Cross-platform wheels for macOS, Linux, and Windows (amd64 + arm64)
+- `crypto/rand` for random data generation — simple, fast, and cryptographically secure
+- Goroutine-based workers replace Python multiprocessing
+
+### Changed
+
+- Rewritten from Python to Go
+- Distributed as a compiled Go binary via PyPI using `bin2whl`
+- No Python runtime required — install with `uv tool install pushfill` or `pip install pushfill`
+- Random generation simplified from pool-based XOR multiplication to direct `crypto/rand`
+- Workers use goroutines instead of multiprocessing + background writer threads
+
+### Removed
+
+- Python source code and all Python-specific tooling (ruff, pyright, argparse wrapper)
+- Pool-based random generation with XOR multiplication (no longer needed for performance)
+- Background writer thread per worker (Go handles concurrency natively)
+
+# pushfill 2.0.0 — 23 Feb 2026
 
 Complete rewrite in Python, replacing the original C implementation.
 
@@ -24,7 +49,7 @@ Complete rewrite in Python, replacing the original C implementation.
 - Rewritten from C to Python (stdlib only, zero dependencies)
 - Data generation changed from RC4 + byte increment to pool-based random with XOR multiplication
 
-# 1.0.0 — February 2018
+# pushfill 1.0.0 — February 2018
 
 Original C implementation.
 

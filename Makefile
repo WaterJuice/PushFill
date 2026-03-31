@@ -1,68 +1,57 @@
-MODULE_NAME="pushfill"
+DIST_DIR=dist
 
 # Default target: print usage message
 .PHONY: help
 help:
 	@echo "Usage:"
-	@echo "  make build        - Build project"
-	@echo "  make clean        - Clean built package"
-	@echo "  make check        - Format check and lint source"
-	@echo "  make format       - Format source using Ruff"
-	@echo "  make lint         - Lint source using pyright"
-	@echo "  make dev          - Just create dev (.venv) setup"
-	@echo "  make docs         - Build documentation site"
-	@echo "  make docs-serve   - Serve documentation locally"
-	@echo "  make publish      - Publish to PyPI and upload docs"
+	@echo "  make build        - Build platform wheels and documentation"
+	@echo "  make go-build     - Cross-compile Go binaries for all platforms"
+	@echo "  make docs         - Build HTML documentation"
+	@echo "  make clean        - Clean build artefacts"
+	@echo "  make check        - Format check and lint Go source"
+	@echo "  make format       - Format Go source with gofmt"
+	@echo "  make dev          - Install dev dependencies"
+	@echo "  make publish      - Publish output/ to PyPI and docs"
 
 # Version string from git tags (falls back to commit hash if no tags)
 VERSION_STR=$(shell git describe --tags --always 2>/dev/null | sed 's/-/.post.dev/' | sed 's/-g/-/')
+GO_LDFLAGS=-s -w -X main.Version=$(VERSION_STR)
 
-# Generate _version.py with the current version
-.PHONY: version
-version:
-	@echo '__version__ = "$(VERSION_STR)"' > pushfill/_version.py
+# Cross-compile Go binaries for all platforms
+.PHONY: go-build
+go-build:
+	@command -v go >/dev/null 2>&1 || { echo "Error: Go is not installed. Install from https://go.dev/dl/"; exit 1; }
+	@mkdir -p $(DIST_DIR)
+	(CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags='$(GO_LDFLAGS)' -o $(DIST_DIR)/pushfill-darwin-arm64      .) & \
+	(CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags='$(GO_LDFLAGS)' -o $(DIST_DIR)/pushfill-darwin-amd64      .) & \
+	(CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags='$(GO_LDFLAGS)' -o $(DIST_DIR)/pushfill-linux-arm64       .) & \
+	(CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags='$(GO_LDFLAGS)' -o $(DIST_DIR)/pushfill-linux-amd64       .) & \
+	(CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags='$(GO_LDFLAGS)' -o $(DIST_DIR)/pushfill-windows-amd64.exe .) & \
+	(CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags='$(GO_LDFLAGS)' -o $(DIST_DIR)/pushfill-windows-arm64.exe .) & \
+	wait
 
-# Build the project (wheel + docs zip)
+# Build platform wheels + docs
 .PHONY: build
-build: check-dependencies format-check lint version docs
+build: check go-build docs
 	rm -rf output/
-	uv build --out-dir output
-	rm -f output/*.tar.gz
-	WHL=$$(ls output/*.whl) && VER=$$(echo "$$WHL" | sed 's/.*pushfill-//' | sed 's/-py3.*//') && \
-		cd html && zip -rq ../output/pushfill-$$VER-docs.zip .
+	uv --version 2>/dev/null && true || pip3 install uv
+	uv sync
+	uv run bin2whl -c wheel.json --version-str $(VERSION_STR)
+	cd html && python3 -m zipfile -c ../output/pushfill-$(VERSION_STR)-docs.zip .
+	@ln -sf $$(pwd)/dist/pushfill-$$(go env GOOS)-$$(go env GOARCH) .venv/bin/pushfill
+	@echo "pushfill linked into .venv/bin/"
 
-.PHONY: clean
-clean:
-	rm -rf output/
+# Publish (requires output/ from make build)
+.PHONY: publish
+publish:
+	uv run cal-publish-python --set-latest output/
 
-# Check the format of code
-.PHONY: check
-check: format-check lint
-
-# Check the format of code
-.PHONY: format-check
-format-check: check-dependencies
-	uv run ruff format --check .
-	uv run ruff check .
-
-# Fix format of the code
-.PHONY: format
-format: check-dependencies
-	uv run ruff format .
-	uv run ruff check . --fix
-
-# Lint the code
-.PHONY: lint
-lint: check-dependencies
-	uv run pyright
-
-# Just create dev (.venv) setup
-.PHONY: dev
-dev: check-dependencies
-
-# Build documentation site (injects version into mkdocs.yml)
+# Build the documentation
 .PHONY: docs
 docs:
+	uv --version 2>/dev/null && true || pip3 install uv
+	uv sync
+	rm -rf html/
 	sed 's/__VERSION__/$(VERSION_STR)/' mkdocs.yml > mkdocs-build.yml
 	uv run --group docs mkdocs build -f mkdocs-build.yml -d html
 	rm -f mkdocs-build.yml
@@ -73,13 +62,31 @@ docs-serve:
 	sed 's/__VERSION__/$(VERSION_STR)/' mkdocs.yml > mkdocs-build.yml
 	uv run --group docs mkdocs serve -f mkdocs-build.yml; rm -f mkdocs-build.yml
 
-# Publish to PyPI and upload docs
-.PHONY: publish
-publish: check-dependencies
-	uv run cal-publish-python --set-latest output/
+# Clean build artefacts
+.PHONY: clean
+clean:
+	rm -rf html/ output/ dist/ .venv/
 
-# Check if uv is installed, install it if not
-.PHONY: check-dependencies
-check-dependencies: version
+# Check format and lint Go source
+.PHONY: check
+check:
+	gofmt -l *.go internal/*.go | grep . && echo "Go files need formatting (run make format)" && exit 1 || true
+	go vet ./...
+
+# Format Go source
+.PHONY: format
+format:
+	gofmt -w *.go internal/*.go
+
+# Dev setup: build for current platform + symlink into venv
+.PHONY: dev
+dev: go-build
 	uv --version 2>/dev/null && true || pip3 install uv
 	uv sync
+	@ln -sf $$(pwd)/dist/pushfill-$$(go env GOOS)-$$(go env GOARCH) .venv/bin/pushfill
+	@echo "pushfill linked into .venv/bin/"
+
+# Run with arguments (e.g. make run ARGS="--size 100M /tmp")
+.PHONY: run
+run: go-build
+	@dist/pushfill-$$(go env GOOS)-$$(go env GOARCH) $(ARGS)
