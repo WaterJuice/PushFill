@@ -1,0 +1,58 @@
+# GitLab CI/CD Pipeline for pushfill
+#
+# - Every commit: runs make build (cross-compiles + builds platform wheels)
+# - Version tags (x.y.z with optional suffix): also runs make publish and creates a GitLab release
+#
+# Required CI/CD variables (Settings > CI/CD > Variables):
+#   CAL_PUBLISH_CONFIG (type: File) - Configuration for cal-publish-python
+
+variables:
+  GIT_DEPTH: 0
+  GO_VERSION: "1.25.0"
+
+stages:
+  - build
+  - publish
+
+default:
+  image: astral/uv:python3.14-bookworm
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq wget >/dev/null 2>&1
+    - wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz
+    - tar -C /usr/local -xzf /tmp/go.tar.gz
+    - export PATH="/usr/local/go/bin:$PATH"
+    - go version
+
+build:
+  stage: build
+  script:
+    - make build
+  artifacts:
+    paths:
+      - output/
+
+publish:
+  stage: publish
+  script:
+    - make publish
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+/'
+    - when: manual
+      allow_failure: true
+
+release:
+  stage: publish
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  script:
+    - echo "Creating release for $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "$CI_COMMIT_TAG"
+    description: "Release $CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "pushfill-${CI_COMMIT_TAG}-docs.zip"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/output/pushfill-${CI_COMMIT_TAG}-docs.zip?job=build"
+          link_type: "other"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+/'
