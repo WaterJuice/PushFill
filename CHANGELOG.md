@@ -1,4 +1,4 @@
-# pushfill 3.0.0 Beta 1 — 31 Mar 2026
+# pushfill 3.0.0 — 31 Mar 2026
 
 Complete rewrite in Go, replacing the Python implementation.
 
