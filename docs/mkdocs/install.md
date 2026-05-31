@@ -24,7 +24,7 @@ pipx install pushfill
 ## From source
 
 ```bash
-git clone https://gitlab.com/waterjuice/pushfill.git
+git clone https://github.com/WaterJuice/pushfill.git
 cd pushfill
 make build
 pip install output/*.whl

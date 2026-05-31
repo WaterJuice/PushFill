@@ -44,7 +44,7 @@ build: check go-build docs
 # Publish (requires output/ from make build)
 .PHONY: publish
 publish:
-	uv run cal-publish-python --set-latest output/
+	uv run wj-publish output/
 
 # Build the documentation
 .PHONY: docs
@@ -52,15 +52,8 @@ docs:
 	uv --version 2>/dev/null && true || pip3 install uv
 	uv sync
 	rm -rf html/
-	sed 's/__VERSION__/$(VERSION_STR)/' mkdocs.yml > mkdocs-build.yml
-	uv run --group docs mkdocs build -f mkdocs-build.yml -d html
-	rm -f mkdocs-build.yml
-
-# Serve documentation locally
-.PHONY: docs-serve
-docs-serve:
-	sed 's/__VERSION__/$(VERSION_STR)/' mkdocs.yml > mkdocs-build.yml
-	uv run --group docs mkdocs serve -f mkdocs-build.yml; rm -f mkdocs-build.yml
+	VERSION=$(VERSION_STR) uv run --group docs wj-mkdocs -f docs/mkdocs.yml -d docs/mkdocs -o html
+	cp docs/docinfo.* html/
 
 # Clean build artefacts
 .PHONY: clean

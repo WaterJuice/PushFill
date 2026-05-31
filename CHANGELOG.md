@@ -1,3 +1,7 @@
+# pushfill 3.0.1 — 31 May 2026
+
+Moved to new GitHub location: https://github.com/WaterJuice/pushfill
+
 # pushfill 3.0.0 — 31 Mar 2026
 
 Complete rewrite in Go, replacing the Python implementation.

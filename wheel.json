@@ -3,9 +3,10 @@
     "description": "Fill a disk with random data to push out old SSD data",
     "author": "WaterJuice",
     "license": "Unlicense",
-    "homepage": "https://gitlab.com/waterjuice/pushfill",
+    "homepage": "https://github.com/WaterJuice/pushfill",
     "readme": "README.md",
     "classifiers": [
+        "Development Status :: 5 - Production/Stable",
         "Programming Language :: Go"
     ],
     "binaries": {

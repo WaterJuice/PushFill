@@ -2,8 +2,15 @@
 name = "pushfill"
 requires-python = ">=3.12"
 version = "0.0.0"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+]
 
-[tool.cal-publish-python]
+[project.urls]
+Documentation = "https://docs.waterjuice.org/pushfill/latest/"
+Source = "https://github.com/WaterJuice/pushfill"
+
+[tool.wj-publish]
 profile = "waterjuice"
 
 [tool.uv]
@@ -11,8 +18,8 @@ profile = "waterjuice"
 [dependency-groups]
 dev = [
     "bin2whl>=1.0.0b3",
-    "cal-publish-python>=1.1.0b1",
+    "wj-publish",
 ]
 docs = [
-    "mkdocs-material",
+    "wj-mkdocs",
 ]

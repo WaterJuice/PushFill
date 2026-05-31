@@ -1,0 +1,19 @@
+INHERIT: !ENV THEME_STD
+site_name: pushfill
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.details
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Usage: usage.md
+  - How It Works: how-it-works.md
+  - History: history.md
+  - Licence: licence.md
