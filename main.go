@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------------------
 package main
 
-import "gitlab.com/waterjuice/pushfill/internal"
+import "github.com/WaterJuice/PushFill/internal"
 
 // Version is set at build time via -ldflags
 var Version = "dev"

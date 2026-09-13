@@ -8,7 +8,7 @@ classifiers = [
 
 [project.urls]
 Documentation = "https://docs.waterjuice.org/pushfill/latest/"
-Source = "https://github.com/WaterJuice/pushfill"
+Source = "https://github.com/WaterJuice/PushFill"
 
 [tool.wj-publish]
 profile = "waterjuice"

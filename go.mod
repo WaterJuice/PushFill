@@ -1,3 +1,3 @@
-module gitlab.com/waterjuice/pushfill
+module github.com/WaterJuice/PushFill
 
 go 1.25.0

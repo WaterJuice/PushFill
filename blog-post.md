@@ -100,5 +100,5 @@ The fact that Python matches C here isn't surprising when you think about it —
 PushFill is released into the public domain under the [Unlicense](https://unlicense.org).
 
 - **PyPI:** [pypi.org/project/pushfill](https://pypi.org/project/pushfill/)
-- **Source:** [gitlab.com/waterjuice/pushfill](https://gitlab.com/waterjuice/pushfill)
-- **Documentation:** [pushfill-4a17ec.gitlab.io](https://pushfill-4a17ec.gitlab.io/)
+- **Source:** [github.com/WaterJuice/PushFill](https://github.com/WaterJuice/PushFill)
+- **Documentation:** [docs.waterjuice.org/pushfill](https://docs.waterjuice.org/pushfill/latest/)

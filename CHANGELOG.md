@@ -1,3 +1,13 @@
+# pushfill 3.0.2 — 13 Sep 2026
+
+Completes the move to GitHub.
+
+- Go module path is now `github.com/WaterJuice/PushFill`, replacing the old GitLab path, so
+  `go install github.com/WaterJuice/PushFill@latest` works.
+- Removed the obsolete GitLab CI configuration.
+- Source and documentation links now point at GitHub and https://docs.waterjuice.org; the
+  repository URL casing was corrected to match the GitHub repository name.
+
 # pushfill 3.0.1 — 31 May 2026
 
 Moved to new GitHub location: https://github.com/WaterJuice/pushfill
