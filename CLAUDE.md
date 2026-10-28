@@ -22,7 +22,7 @@ Use **Australian English** throughout:
 
 ### Go Files
 
-- **Go 1.25+** — uses standard library only, zero external dependencies
+- **Go 1.27.3+** — uses standard library only, zero external dependencies
 - `CGO_ENABLED=0` for static cross-compilation
 - Format with `gofmt`
 - Lint with `go vet`

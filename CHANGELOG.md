@@ -1,3 +1,10 @@
+# pushfill 3.1.0 — 28 Oct 2026
+
+- Built with Go 1.27.3 to pick up the fix for the eMudura TLS issue.
+- `go.mod` now requires Go 1.27.3 (was 1.25.0), so builds from source — including
+  `go install` — can't fall back to an older toolchain without the fix. This also brings in
+  Go 1.27's default runtime (`GODEBUG`) settings.
+
 # pushfill 3.0.2 — 13 Sep 2026
 
 Completes the move to GitHub.
